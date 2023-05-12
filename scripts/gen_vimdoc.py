@@ -32,6 +32,7 @@ The generated :help text for each function is formatted as follows:
     parameter is marked as [out].
   - Each function documentation is separated by a single line.
 """
+
 import argparse
 import os
 import re
@@ -71,7 +72,7 @@ else:
     nvim_out = subprocess.check_output(['nvim', '-h'], universal_newlines=True)
     nvim_version = [line for line in nvim_out.split('\n')
                     if '-l ' in line]
-    if len(nvim_version) == 0:
+    if not nvim_version:
         print((
             "\nYou need to have a local Neovim build or a `nvim` version 0.9 for `-l` "
             "support to build the documentation."))
@@ -96,7 +97,7 @@ indentation = 4
 script_path = os.path.abspath(__file__)
 base_dir = os.path.dirname(os.path.dirname(script_path))
 out_dir = os.path.join(base_dir, 'tmp-{target}-doc')
-filter_cmd = '%s %s' % (sys.executable, script_path)
+filter_cmd = f'{sys.executable} {script_path}'
 msgs = []  # Messages to show on exit.
 lua2dox = os.path.join(base_dir, 'scripts', 'lua2dox.lua')
 
@@ -177,15 +178,18 @@ CONFIG = {
         'section_fmt': lambda name: (
             'Lua module: vim'
             if name.lower() == '_editor'
-            else f'Lua module: {name.lower()}'),
+            else f'Lua module: {name.lower()}'
+        ),
         'helptag_fmt': lambda name: (
             '*lua-vim*'
             if name.lower() == '_editor'
-            else f'*lua-{name.lower()}*'),
+            else f'*lua-{name.lower()}*'
+        ),
         'fn_helptag_fmt': lambda fstem, name: (
             f'*vim.{name}()*'
             if fstem.lower() == '_editor'
-            else f'*{fstem}.{name}()*'),
+            else f'*{fstem}.{name}()*'
+        ),
         'module_override': {
             # `shared` functions are exposed on the `vim` module.
             'shared': 'vim',
@@ -230,19 +234,16 @@ CONFIG = {
         'section_fmt': lambda name: (
             'Lua module: vim.lsp'
             if name.lower() == 'lsp'
-            else f'Lua module: vim.lsp.{name.lower()}'),
+            else f'Lua module: vim.lsp.{name.lower()}'
+        ),
         'helptag_fmt': lambda name: (
-            '*lsp-core*'
-            if name.lower() == 'lsp'
-            else f'*lsp-{name.lower()}*'),
-        'fn_helptag_fmt': lambda fstem, name: (
-            f'*vim.lsp.{name}()*'
-            if fstem == 'lsp' and name != 'client'
-            else (
-                '*vim.lsp.client*'
-                # HACK. TODO(justinmk): class/structure support in lua2dox
-                if 'lsp.client' == f'{fstem}.{name}'
-                else f'*vim.lsp.{fstem}.{name}()*')),
+            '*lsp-core*' if name.lower() == 'lsp' else f'*lsp-{name.lower()}*'
+        ),
+        'fn_helptag_fmt': lambda fstem, name: f'*vim.lsp.{name}()*'
+        if fstem == 'lsp' and name != 'client'
+        else '*vim.lsp.client*'
+        if f'{fstem}.{name}' == 'lsp.client'
+        else f'*vim.lsp.{fstem}.{name}()*',
         'module_override': {},
         'append_only': [],
     },
@@ -283,20 +284,23 @@ CONFIG = {
         'section_fmt': lambda name: (
             'Lua module: vim.treesitter'
             if name.lower() == 'treesitter'
-            else f'Lua module: vim.treesitter.{name.lower()}'),
+            else f'Lua module: vim.treesitter.{name.lower()}'
+        ),
         'helptag_fmt': lambda name: (
             '*lua-treesitter-core*'
             if name.lower() == 'treesitter'
-            else f'*lua-treesitter-{name.lower()}*'),
+            else f'*lua-treesitter-{name.lower()}*'
+        ),
         'fn_helptag_fmt': lambda fstem, name: (
             f'*vim.{fstem}.{name}()*'
             if fstem == 'treesitter'
             else f'*{name}()*'
             if name[0].isupper()
-            else f'*vim.treesitter.{fstem}.{name}()*'),
+            else f'*vim.treesitter.{fstem}.{name}()*'
+        ),
         'module_override': {},
         'append_only': [],
-    }
+    },
 }
 
 param_exclude = (
@@ -327,7 +331,7 @@ def debug_this(o, cond=True):
     if (cond is True
             or (callable(cond) and cond())
             or (not callable(cond) and cond in o)):
-        raise RuntimeError('xxx: {}\n{}'.format(name, o))
+        raise RuntimeError(f'xxx: {name}\n{o}')
 
 
 # Appends a message to a list which will be printed on exit.
@@ -350,9 +354,7 @@ def fail(s):
 def find_first(parent, name):
     """Finds the first matching node within parent."""
     sub = parent.getElementsByTagName(name)
-    if not sub:
-        return None
-    return sub[0]
+    return None if not sub else sub[0]
 
 
 def iter_children(parent, name):
@@ -371,9 +373,7 @@ def get_child(parent, name):
 
 def self_or_child(n):
     """Gets the first child node, or self."""
-    if len(n.childNodes) == 0:
-        return n
-    return n.childNodes[0]
+    return n if len(n.childNodes) == 0 else n.childNodes[0]
 
 
 def align_tags(line):
@@ -396,7 +396,7 @@ def clean_lines(text):
 
 
 def is_blank(text):
-    return '' == clean_lines(text)
+    return clean_lines(text) == ''
 
 
 def get_text(n, preformatted=False):
@@ -407,7 +407,7 @@ def get_text(n, preformatted=False):
     if n.nodeName == 'computeroutput':
         for node in n.childNodes:
             text += get_text(node)
-        return '`{}`'.format(text)
+        return f'`{text}`'
     for node in n.childNodes:
         if node.nodeType == node.TEXT_NODE:
             text += node.data
@@ -419,9 +419,9 @@ def get_text(n, preformatted=False):
 # Gets the length of the last line in `text`, excluding newline ("\n") char.
 def len_lastline(text):
     lastnl = text.rfind('\n')
-    if -1 == lastnl:
+    if lastnl == -1:
         return len(text)
-    if '\n' == text[-1]:
+    if text[-1] == '\n':
         return lastnl - (1 + text.rfind('\n', 0, lastnl))
     return len(text) - (1 + lastnl)
 
@@ -486,9 +486,7 @@ def doc_wrap(text, prefix='', width=70, func=False, indent=None):
 
 
 def max_name(names):
-    if len(names) == 0:
-        return 0
-    return max(len(name) for name in names)
+    return 0 if len(names) == 0 else max(len(name) for name in names)
 
 
 def update_params_map(parent, ret_map, width=text_width - indentation):
@@ -510,8 +508,7 @@ def update_params_map(parent, ret_map, width=text_width - indentation):
     # `ret_map` is a name:desc map.
     for name, node in params.items():
         desc = ''
-        desc_node = get_child(node, 'parameterdescription')
-        if desc_node:
+        if desc_node := get_child(node, 'parameterdescription'):
             desc = fmt_node_as_vimhelp(
                     desc_node, width=width, indent=(' ' * max_name_len))
             ret_map[name] = desc
@@ -532,9 +529,9 @@ def render_node(n, text, prefix='', indent='', width=text_width - indentation,
     if n.nodeName == 'preformatted':
         o = get_text(n, preformatted=True)
         ensure_nl = '' if o[-1] == '\n' else '\n'
-        if o[0:4] == 'lua\n':
+        if o[:4] == 'lua\n':
             text += '>lua{}{}\n<'.format(ensure_nl, o[3:-1])
-        elif o[0:4] == 'vim\n':
+        elif o[:4] == 'vim\n':
             text += '>vim{}{}\n<'.format(ensure_nl, o[3:-1])
         else:
             text += '>{}{}\n<'.format(ensure_nl, o)
@@ -666,12 +663,14 @@ def para_as_map(parent, indent='', width=text_width - indentation, fmt_vimhelp=F
                     raise RuntimeError('unhandled simplesect: {}\n{}'.format(
                         child.nodeName, child.toprettyxml(indent='  ', newl='\n')))
             else:
-                if (prev is not None
-                        and is_inline(self_or_child(prev))
-                        and is_inline(self_or_child(child))
-                        and '' != get_text(self_or_child(child)).strip()
-                        and text
-                        and ' ' != text[-1]):
+                if (
+                    prev is not None
+                    and is_inline(self_or_child(prev))
+                    and is_inline(self_or_child(child))
+                    and get_text(self_or_child(child)).strip() != ''
+                    and text
+                    and text[-1] != ' '
+                ):
                     text += ' '
 
                 text += render_node(child, text, indent=indent, width=width,
@@ -702,8 +701,9 @@ def para_as_map(parent, indent='', width=text_width - indentation, fmt_vimhelp=F
         title = get_text(get_child(child, 'xreftitle')) + ' '
         xrefs.add(title)
         xrefdesc = get_text(get_child(child, 'xrefdescription'))
-        chunks['xrefs'].append(doc_wrap(xrefdesc, prefix='{}: '.format(title),
-                                        width=width) + '\n')
+        chunks['xrefs'].append(
+            (doc_wrap(xrefdesc, prefix=f'{title}: ', width=width) + '\n')
+        )
 
     return chunks, xrefs
 
@@ -788,7 +788,7 @@ def extract_from_xml(filename, target, width, fmt_vimhelp):
 
         if return_type.startswith(('ArrayOf', 'DictionaryOf')):
             parts = return_type.strip('_').split('_')
-            return_type = '{}({})'.format(parts[0], ', '.join(parts[1:]))
+            return_type = f"{parts[0]}({', '.join(parts[1:])})"
 
         name = get_text(get_child(member, 'name'))
 
@@ -808,8 +808,7 @@ def extract_from_xml(filename, target, width, fmt_vimhelp):
         for param in iter_children(member, 'param'):
             param_type = get_text(get_child(param, 'type')).strip()
             param_name = ''
-            declname = get_child(param, 'declname')
-            if declname:
+            if declname := get_child(param, 'declname'):
                 param_name = get_text(declname).strip()
             elif CONFIG[target]['mode'] == 'lua':
                 # XXX: this is what lua2dox gives us...
@@ -821,7 +820,7 @@ def extract_from_xml(filename, target, width, fmt_vimhelp):
 
             if fmt_vimhelp and param_type.endswith('*'):
                 param_type = param_type.strip('* ')
-                param_name = '*' + param_name
+                param_name = f'*{param_name}'
 
             type_length = max(type_length, len(param_type))
             params.append((param_type, param_name))
@@ -835,27 +834,25 @@ def extract_from_xml(filename, target, width, fmt_vimhelp):
             split_return = return_type.split(' ')
             name = f'{split_return[1]}:{name}'
 
-        c_args = []
-        for param_type, param_name in params:
-            c_args.append(('    ' if fmt_vimhelp else '') + (
-                '%s %s' % (param_type.ljust(type_length), param_name)).strip())
-
-        if not fmt_vimhelp:
-            pass
-        else:
+        c_args = [
+            ('    ' if fmt_vimhelp else '')
+            + f'{param_type.ljust(type_length)} {param_name}'.strip()
+            for param_type, param_name in params
+        ]
+        if fmt_vimhelp:
             fstem = '?'
             if '.' in compoundname:
                 fstem = compoundname.split('.')[0]
                 fstem = CONFIG[target]['module_override'].get(fstem, fstem)
             vimtag = CONFIG[target]['fn_helptag_fmt'](fstem, name)
 
-        prefix = '%s(' % name
+        prefix = f'{name}('
         suffix = '%s)' % ', '.join('{%s}' % a[1] for a in params
                                    if a[0] not in ('void', 'Error', 'Arena',
                                                    'lua_State'))
 
         if not fmt_vimhelp:
-            c_decl = '%s %s(%s);' % (return_type, name, ', '.join(c_args))
+            c_decl = f"{return_type} {name}({', '.join(c_args)});"
             signature = prefix + suffix
         else:
             c_decl = textwrap.indent('%s %s(\n%s\n);' % (return_type, name,
@@ -909,9 +906,8 @@ def extract_from_xml(filename, target, width, fmt_vimhelp):
             fn['brief_desc_node'] = brief_desc
 
         for m in paras:
-            if 'text' in m:
-                if not m['text'] == '':
-                    fn['doc'].append(m['text'])
+            if 'text' in m and m['text'] != '':
+                fn['doc'].append(m['text'])
             if 'params' in m:
                 # Merge OrderedDicts.
                 fn['parameters_doc'].update(m['params'])
@@ -957,8 +953,7 @@ def fmt_doxygen_xml_as_vimhelp(filename, target):
         if not doc:
             doc = 'TODO: Documentation'
 
-        annotations = '\n'.join(fn['annotations'])
-        if annotations:
+        if annotations := '\n'.join(fn['annotations']):
             annotations = ('\n\nAttributes: ~\n' +
                            textwrap.indent(annotations, '    '))
             i = doc.rfind('Parameters: ~')
@@ -991,12 +986,10 @@ def fmt_doxygen_xml_as_vimhelp(filename, target):
             except ValueError:
                 break
 
-            split_lines[start + 1:end] = [
-                ('    ' + x).rstrip()
+            split_lines[start + 1 : end] = [
+                f'    {x}'.rstrip()
                 for x in textwrap.dedent(
-                    "\n".join(
-                        split_lines[start+1:end]
-                    )
+                    "\n".join(split_lines[start + 1 : end])
                 ).split("\n")
             ]
 
@@ -1027,7 +1020,7 @@ def delete_lines_below(filename, tokenstr):
         raise RuntimeError(f'not found: "{tokenstr}"')
     i = max(0, i - 2)
     with open(filename, 'wt') as fp:
-        fp.writelines(lines[0:i])
+        fp.writelines(lines[:i])
 
 
 def main(doxygen_config, args):
